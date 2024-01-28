@@ -9,7 +9,8 @@ import multiprocessing
 from mutagen.mp3 import MP3
 from mutagen.easyid3 import EasyID3
 
-def process(filename, trim_start, trim_end, padding):
+
+def process(filename, trim_start, trim_end, padding, replace_files):
     print(f"Processing file: {filename}")
     
     # Load the mp3 file and its metadata
@@ -40,20 +41,26 @@ def process(filename, trim_start, trim_end, padding):
         trimmed_data = data
         print("No silence detected. File remains unchanged.")
     
-    # Write the trimmed audio data to a new file
-    trimmed_filename = f"trimmed_{os.path.basename(filename)}"
+    # Determine the destination path for the trimmed file
+    if replace_files:
+        trimmed_filename = filename
+    else:
+        trimmed_filename = os.path.join("trimmed", os.path.basename(filename))
+        os.makedirs("trimmed", exist_ok=True)
+    
+    # Write the trimmed audio data to the destination file
     sf.write(trimmed_filename, trimmed_data, samplerate)
     print("Trimming completed.")
 
     # Preserve metadata for MP3 files
     if filename.lower().endswith('.mp3'):
         # Load metadata from the original file
-        audio = MP3(trimmed_filename, ID3=EasyID3)
+        trimmed_audio = MP3(trimmed_filename, ID3=EasyID3)
         # Update the metadata with the original data
-        audio.update(original_audio.tags)
+        trimmed_audio.update(original_audio)
         # Save the trimmed file with preserved metadata
-        audio.save()
-        
+        trimmed_audio.save()
+
 if __name__ == "__main__":
     # Prompt the user for options
     trim_start = input("Trim silence from the start of the audio files? (y/n): ").lower() == 'y'
@@ -61,6 +68,7 @@ if __name__ == "__main__":
     padding = int(input("Enter the padding to apply around detected edge of silence (default is 32): ") or 32)
     num_threads = int(input("Enter the number of threads to use for parallel processing (default is CPU count): ")
                       or multiprocessing.cpu_count())
+    replace_files = input("Replace original files with trimmed versions? (y/n): ").lower() == 'y'
 
     # List all mp3 files
     mp3_files = []
@@ -71,4 +79,4 @@ if __name__ == "__main__":
 
     # Process files in parallel
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files))
+        executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files), [replace_files] * len(mp3_files))
