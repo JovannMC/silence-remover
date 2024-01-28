@@ -5,55 +5,63 @@ import os
 import numpy as np
 import soundfile as sf
 from concurrent.futures import ThreadPoolExecutor
+import multiprocessing
+from mutagen.mp3 import MP3
+from mutagen.easyid3 import EasyID3
 
-# Noise floor in dB
-NOISE_FLOOR = -60
-
-# Trim silence from start?
-TRIM_START = True
-
-# Trim silence from end?
-TRIM_END = True
-
-# Padding to apply around detected edge of silence
-PADDING = 32
-
-epsilon = 10 ** (NOISE_FLOOR / 20)
-
-
-def process(filename):
+def process(filename, trim_start, trim_end, padding):
     print(f"Processing file: {filename}")
-    # Load the mp3 file
+    
+    # Load the mp3 file and its metadata
     data, samplerate = sf.read(filename, always_2d=True)
+    original_audio = MP3(filename, ID3=EasyID3)
+    
     # Find indices of samples above noise floor
+    epsilon = 10 ** (-60 / 20)
     indices = (np.abs(data) >= epsilon).any(axis=1).nonzero()[0]
-    # Trim silence (if it found any non-silent samples)
+    
+    # Trim silence (if any non-silent samples are found)
     if len(indices) > 1:
         # Find start and end index to trim (+/- padding)
-        start_index = max(0, indices[0] - PADDING) if TRIM_START else 0
-        end_index = min(len(data), indices[-1] + PADDING) if TRIM_END else len(data)
+        start_index = max(0, indices[0] - padding) if trim_start else 0
+        end_index = min(len(data), indices[-1] + padding) if trim_end else len(data)
         
-        # Calculate the amount of silence trimmed at the start
-        start_trimmed = indices[0] / samplerate if TRIM_START else 0.0
+        # Calculate the amount of silence trimmed at the start and end
+        start_trimmed = indices[0] / samplerate if trim_start else 0.0
+        end_trimmed = (len(data) - indices[-1]) / samplerate if trim_end else 0.0
         
-        # Calculate the amount of silence trimmed at the end
-        end_trimmed = (len(data) - indices[-1]) / samplerate if TRIM_END else 0.0
-        
-        # Trim the data
+        # Trim the audio data
         trimmed_data = data[start_index:end_index]
         
         print(f"Trimmed {start_trimmed:.2f} seconds of silence at the start.")
         print(f"Trimmed {end_trimmed:.2f} seconds of silence at the end.")
     else:
+        # No silence detected, keep the original data
         trimmed_data = data
         print("No silence detected. File remains unchanged.")
     
-    # Write trimmed mp3, replacing the original file
-    sf.write(filename, trimmed_data, samplerate)
+    # Write the trimmed audio data to a new file
+    trimmed_filename = f"trimmed_{os.path.basename(filename)}"
+    sf.write(trimmed_filename, trimmed_data, samplerate)
     print("Trimming completed.")
 
-
+    # Preserve metadata for MP3 files
+    if filename.lower().endswith('.mp3'):
+        # Load metadata from the original file
+        audio = MP3(trimmed_filename, ID3=EasyID3)
+        # Update the metadata with the original data
+        audio.update(original_audio.tags)
+        # Save the trimmed file with preserved metadata
+        audio.save()
+        
 if __name__ == "__main__":
+    # Prompt the user for options
+    trim_start = input("Trim silence from the start of the audio files? (y/n): ").lower() == 'y'
+    trim_end = input("Trim silence from the end of the audio files? (y/n): ").lower() == 'y'
+    padding = int(input("Enter the padding to apply around detected edge of silence (default is 32): ") or 32)
+    num_threads = int(input("Enter the number of threads to use for parallel processing (default is CPU count): ")
+                      or multiprocessing.cpu_count())
+
     # List all mp3 files
     mp3_files = []
     for root, dirs, files in os.walk('.'):
@@ -61,6 +69,6 @@ if __name__ == "__main__":
             if file.endswith('.mp3'):
                 mp3_files.append(os.path.join(root, file))
 
-    # Process files in parallel, uses all threads
-    with ThreadPoolExecutor() as executor:
-        executor.map(process, mp3_files)
+    # Process files in parallel
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files))
