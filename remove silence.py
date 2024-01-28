@@ -1,5 +1,13 @@
 """Bulk trim silence from all mp3 files in the folder of the script, including subfolders."""
 """Modified from https://sound.stackexchange.com/questions/52246/how-can-i-batch-remove-trailing-silence-from-audio-files"""
+""" TODO: 
+    support for more audio types
+    audio types to scan for
+    scan subdirectories
+    minimum seconds for it to trim part of song
+    add a :3
+"""
+
 
 import os
 import numpy as np
@@ -37,7 +45,6 @@ def process(filename, trim_start, trim_end, padding, replace_files):
         print(f"Trimmed {start_trimmed:.2f} seconds of silence at the start.")
         print(f"Trimmed {end_trimmed:.2f} seconds of silence at the end.")
     else:
-        # No silence detected, keep the original data
         trimmed_data = data
         print("No silence detected. File remains unchanged.")
     
@@ -54,11 +61,8 @@ def process(filename, trim_start, trim_end, padding, replace_files):
 
     # Preserve metadata for MP3 files
     if filename.lower().endswith('.mp3'):
-        # Load metadata from the original file
         trimmed_audio = MP3(trimmed_filename, ID3=EasyID3)
-        # Update the metadata with the original data
         trimmed_audio.update(original_audio)
-        # Save the trimmed file with preserved metadata
         trimmed_audio.save()
 
 if __name__ == "__main__":
