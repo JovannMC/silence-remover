@@ -1,10 +1,12 @@
-"""Bulk trim silence from all mp3 files in the folder of the script, including subfolders."""
-"""Modified from https://sound.stackexchange.com/questions/52246/how-can-i-batch-remove-trailing-silence-from-audio-files"""
+# Modified from https://sound.stackexchange.com/questions/52246/how-can-i-batch-remove-trailing-silence-from-audio-files
+
+# Bulk trim silence from all mp3 files with many settings to customize
 """ TODO: 
     support for more audio types
     audio types to scan for
+    select folder to scan
     scan subdirectories
-    minimum seconds for it to trim part of song
+    minimum seconds to trim the silence
     add a :3
 """
 
@@ -18,7 +20,7 @@ from mutagen.mp3 import MP3
 from mutagen.easyid3 import EasyID3
 
 
-def process(filename, trim_start, trim_end, padding, replace_files):
+def process(filename, trim_start, trim_end, padding, noise_floor, replace_files):
     print(f"Processing file: {filename}")
     
     # Load the mp3 file and its metadata
@@ -26,7 +28,7 @@ def process(filename, trim_start, trim_end, padding, replace_files):
     original_audio = MP3(filename, ID3=EasyID3)
     
     # Find indices of samples above noise floor
-    epsilon = 10 ** (-60 / 20)
+    epsilon = 10 ** (noise_floor / 20)
     indices = (np.abs(data) >= epsilon).any(axis=1).nonzero()[0]
     
     # Trim silence (if any non-silent samples are found)
@@ -67,20 +69,33 @@ def process(filename, trim_start, trim_end, padding, replace_files):
 
 if __name__ == "__main__":
     # Prompt the user for options
-    trim_start = input("Trim silence from the start of the audio files? (y/n): ").lower() == 'y'
-    trim_end = input("Trim silence from the end of the audio files? (y/n): ").lower() == 'y'
-    padding = int(input("Enter the padding to apply around detected edge of silence (default is 32): ") or 32)
-    num_threads = int(input("Enter the number of threads to use for parallel processing (default is CPU count): ")
+    trim_start = input("Trim silence from the start of the audio files? (Y/n): ").lower() == 'y'
+    trim_end = input("Trim silence from the end of the audio files? (Y/n): ").lower() == 'y'
+    scan_subdirectories = input("Scan subdirectories? (Y/n): ").lower() == 'y'
+    replace_files = input("Replace original files with trimmed versions? (y/N): ").lower() == 'y'
+    padding = int(input("Enter the padding to apply around detected edge of silence (32): ") or 32)
+    noise_floor = int(input("Enter the noise floor for silence in dB (-60): ") or -60)
+    num_threads = int(input(f"Enter the number of threads to use for parallel processing ({multiprocessing.cpu_count()}): ")
                       or multiprocessing.cpu_count())
-    replace_files = input("Replace original files with trimmed versions? (y/n): ").lower() == 'y'
+
+    # Reverse boolean to make the default 'true' instead
+    trim_start = trim_start != 'n'
+    trim_end = trim_end != 'n'
+    scan_subdirectories = scan_subdirectories != 'n'
 
     # List all mp3 files
     mp3_files = []
-    for root, dirs, files in os.walk('.'):
-        for file in files:
+
+    if scan_subdirectories:
+        for root, dirs, files in os.walk('.'):
+            for file in files:
+                if file.endswith('.mp3'):
+                    mp3_files.append(os.path.join(root, file))
+    else:
+        for file in os.listdir('.'):
             if file.endswith('.mp3'):
-                mp3_files.append(os.path.join(root, file))
+                mp3_files.append(file)
 
     # Process files in parallel
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files), [replace_files] * len(mp3_files))
+        executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files), [noise_floor] * len(mp3_files), [replace_files] * len(mp3_files))
