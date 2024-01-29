@@ -69,6 +69,15 @@ def process(filename, trim_start, trim_end, padding, noise_floor, replace_files)
 
 if __name__ == "__main__":
     # Prompt the user for options
+    current_directory = os.getcwd()
+    folder_to_scan = input(f"Which directory should be scanned for audio files? ({os.getcwd()}): ")
+    if folder_to_scan:
+        if not os.path.isdir(folder_to_scan):
+            print("Error: The specified directory does not exist")
+            exit()
+    else:
+        folder_to_scan = current_directory
+
     trim_start = input("Trim silence from the start of the audio files? (Y/n): ").lower() == 'y'
     trim_end = input("Trim silence from the end of the audio files? (Y/n): ").lower() == 'y'
     scan_subdirectories = input("Scan subdirectories? (Y/n): ").lower() == 'y'
@@ -83,18 +92,21 @@ if __name__ == "__main__":
     trim_end = trim_end != 'n'
     scan_subdirectories = scan_subdirectories != 'n'
 
-    # List all mp3 files
-    mp3_files = []
+    print("Scanning directory:", folder_to_scan)
 
+    # List all mp3 files in the specified directory
+    mp3_files = []
     if scan_subdirectories:
-        for root, dirs, files in os.walk('.'):
+        for root, dirs, files in os.walk(folder_to_scan):
             for file in files:
                 if file.endswith('.mp3'):
                     mp3_files.append(os.path.join(root, file))
     else:
-        for file in os.listdir('.'):
+        for file in os.listdir(folder_to_scan):
             if file.endswith('.mp3'):
-                mp3_files.append(file)
+                mp3_files.append(os.path.join(folder_to_scan, file))
+
+    print("Found", len(mp3_files), "MP3 files in the directory.")
 
     # Process files in parallel
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
