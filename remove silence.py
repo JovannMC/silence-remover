@@ -19,7 +19,7 @@ def print_friendly(prefix, message):
     print(f"({prefix}): " + message)
 
 
-def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files, min_silence_duration):
+def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files, min_silence_duration, save_metadata):
     filename = os.path.basename(filepath)
     print(f"Processing file: {filepath}")
     
@@ -67,7 +67,9 @@ def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files,
     sf.write(trimmed_filepath, trimmed_data, samplerate)
     print_friendly(filename, "Trimming completed.")
 
-    if filepath.lower().endswith('.mp3'):
+    # Save metadata if requested
+    if save_metadata and filepath.lower().endswith('.mp3'):
+        print_friendly(filename, "Copying metadata to trimmed file.")
         trimmed_audio = MP3(trimmed_filepath, ID3=EasyID3)
         trimmed_audio.update(original_audio)
         trimmed_audio.save()
@@ -85,6 +87,7 @@ if __name__ == "__main__":
         folder_to_scan = current_directory
 
     scan_subdirectories = input("Scan subdirectories? (Y/n): ").lower() == 'y'
+    save_metadata = input("Save audio metadata? (Y/n): ").lower() == 'y'
     replace_files = input("Replace original files with trimmed versions? (y/N): ").lower() == 'y'
     trim_start = input("Trim silence from the start of the audio files? (Y/n): ").lower() == 'y'
     trim_end = input("Trim silence from the end of the audio files? (Y/n): ").lower() == 'y'
@@ -119,6 +122,6 @@ if __name__ == "__main__":
 
     # Process files in parallel (if user chooses to multithread)
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files), [noise_floor] * len(mp3_files), [replace_files] * len(mp3_files), [minimum_duration] * len(mp3_files))
+        executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files), [noise_floor] * len(mp3_files), [replace_files] * len(mp3_files), [minimum_duration] * len(mp3_files), [save_metadata] * len(mp3_files))
 
     print("Done processing! :3")
