@@ -4,10 +4,6 @@
 """ TODO: 
     support for more audio types
     audio types to scan for
-    select folder to scan
-    scan subdirectories
-    minimum seconds to trim the silence
-    add a :3
 """
 
 
@@ -20,7 +16,7 @@ from mutagen.mp3 import MP3
 from mutagen.easyid3 import EasyID3
 
 
-def process(filename, trim_start, trim_end, padding, noise_floor, replace_files):
+def process(filename, trim_start, trim_end, padding, noise_floor, replace_files, min_silence_duration):
     print(f"Processing file: {filename}")
     
     # Load the mp3 file and its metadata
@@ -37,18 +33,23 @@ def process(filename, trim_start, trim_end, padding, noise_floor, replace_files)
         start_index = max(0, indices[0] - padding) if trim_start else 0
         end_index = min(len(data), indices[-1] + padding) if trim_end else len(data)
         
-        # Calculate the amount of silence trimmed at the start and end
-        start_trimmed = indices[0] / samplerate if trim_start else 0.0
-        end_trimmed = (len(data) - indices[-1]) / samplerate if trim_end else 0.0
+        # Calculate the duration of silence trimmed at the start and end
+        start_trimmed_duration = indices[0] / samplerate if trim_start else 0.0
+        end_trimmed_duration = (len(data) - indices[-1]) / samplerate if trim_end else 0.0
         
-        # Trim the audio data
-        trimmed_data = data[start_index:end_index]
+        if start_trimmed_duration >= min_silence_duration:
+            trimmed_data = data[start_index:end_index]
+            print(f"Trimmed {start_trimmed_duration:.2f} seconds of silence at the start.")
+        else:
+            trimmed_data = data
+            print(f"Start silence duration ({end_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds). File remains unchanged.")
         
-        print(f"Trimmed {start_trimmed:.2f} seconds of silence at the start.")
-        print(f"Trimmed {end_trimmed:.2f} seconds of silence at the end.")
+        if end_trimmed_duration < min_silence_duration:
+            print(f"End silence duration ({end_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds). File remains unchanged.")
     else:
         trimmed_data = data
         print("No silence detected. File remains unchanged.")
+
     
     # Determine the destination path for the trimmed file
     if replace_files:
@@ -61,14 +62,14 @@ def process(filename, trim_start, trim_end, padding, noise_floor, replace_files)
     sf.write(trimmed_filename, trimmed_data, samplerate)
     print("Trimming completed.")
 
-    # Preserve metadata for MP3 files
     if filename.lower().endswith('.mp3'):
         trimmed_audio = MP3(trimmed_filename, ID3=EasyID3)
         trimmed_audio.update(original_audio)
         trimmed_audio.save()
 
+
 if __name__ == "__main__":
-    # Prompt the user for options
+    # Prompt the options for the user
     current_directory = os.getcwd()
     folder_to_scan = input(f"Which directory should be scanned for audio files? ({os.getcwd()}): ")
     if folder_to_scan:
@@ -78,10 +79,11 @@ if __name__ == "__main__":
     else:
         folder_to_scan = current_directory
 
-    trim_start = input("Trim silence from the start of the audio files? (Y/n): ").lower() == 'y'
-    trim_end = input("Trim silence from the end of the audio files? (Y/n): ").lower() == 'y'
     scan_subdirectories = input("Scan subdirectories? (Y/n): ").lower() == 'y'
     replace_files = input("Replace original files with trimmed versions? (y/N): ").lower() == 'y'
+    trim_start = input("Trim silence from the start of the audio files? (Y/n): ").lower() == 'y'
+    trim_end = input("Trim silence from the end of the audio files? (Y/n): ").lower() == 'y'
+    minimum_duration = float(input("Enter the minimum duration of silence to be trimmed (1.0): ") or 1.0)
     padding = int(input("Enter the padding to apply around detected edge of silence (32): ") or 32)
     noise_floor = int(input("Enter the noise floor for silence in dB (-60): ") or -60)
     num_threads = int(input(f"Enter the number of threads to use for parallel processing ({multiprocessing.cpu_count()}): ")
@@ -110,4 +112,6 @@ if __name__ == "__main__":
 
     # Process files in parallel
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files), [noise_floor] * len(mp3_files), [replace_files] * len(mp3_files))
+        executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files), [noise_floor] * len(mp3_files), [replace_files] * len(mp3_files), [minimum_duration] * len(mp3_files))
+
+    print("Done processing! :3")
