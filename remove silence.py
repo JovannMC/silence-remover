@@ -46,14 +46,14 @@ def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files,
             print_friendly(filename, f"Trimmed {start_trimmed_duration:.2f} seconds of silence at the start.")
         else:
             trimmed_data = data
-            print_friendly(filename, f"Start silence duration ({start_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds). File remains unchanged.")
+            print_friendly(filename, f"Start silence duration ({start_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds).")
         
         if end_trimmed_duration >= min_silence_duration:
             trimmed_data = data[start_index:end_index]
             print_friendly(filename, f"Trimmed {end_trimmed_duration:.2f} seconds of silence at the end.")
         else:
             trimmed_data = data
-            print_friendly(filename, f"End silence duration ({end_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds). File remains unchanged.")
+            print_friendly(filename, f"End silence duration ({end_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds).")
 
     
     # Determine the destination path for the trimmed file
