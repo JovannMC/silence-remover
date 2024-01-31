@@ -74,7 +74,7 @@ def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files,
 
 
 if __name__ == "__main__":
-    # Prompt the options for the user
+    # Options for the user
     current_directory = os.getcwd()
     folder_to_scan = input(f"Which directory should be scanned for audio files? ({os.getcwd()}): ")
     if folder_to_scan:
@@ -91,17 +91,19 @@ if __name__ == "__main__":
     minimum_duration = float(input("Enter the minimum duration of silence to be trimmed (1.0): ") or 1.0)
     padding = int(input("Enter the padding to apply around detected edge of silence (32): ") or 32)
     noise_floor = int(input("Enter the noise floor for silence in dB (-60): ") or -60)
-    num_threads = int(input(f"Enter the number of threads to use for parallel processing ({multiprocessing.cpu_count()}): ")
-                      or multiprocessing.cpu_count())
+    num_threads = int(input(f"Enter the number of threads to use for parallel processing (1): ") or 1)
+    if (num_threads > multiprocessing.cpu_count()):
+        print(f"Error: Allocated more threads than the system has available ({multiprocessing.cpu_count()} threads)")
+        exit()
 
-    # Reverse boolean to make the default 'true' instead
+    # Reverse boolean to make the default "true" instead
     trim_start = trim_start != 'n'
     trim_end = trim_end != 'n'
     scan_subdirectories = scan_subdirectories != 'n'
 
     print("Scanning directory:", folder_to_scan)
 
-    # List all mp3 files in the specified directory
+    # Find all mp3 files in the specified directory
     mp3_files = []
     if scan_subdirectories:
         for root, dirs, files in os.walk(folder_to_scan):
@@ -115,7 +117,7 @@ if __name__ == "__main__":
 
     print("Found", len(mp3_files), "MP3 files in the directory.")
 
-    # Process files in parallel
+    # Process files in parallel (if user chooses to multithread)
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files), [noise_floor] * len(mp3_files), [replace_files] * len(mp3_files), [minimum_duration] * len(mp3_files))
 
