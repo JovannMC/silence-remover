@@ -15,13 +15,17 @@ import multiprocessing
 from mutagen.mp3 import MP3
 from mutagen.easyid3 import EasyID3
 
+def print_friendly(prefix, message):
+    print(f"({prefix}): " + message)
 
-def process(filename, trim_start, trim_end, padding, noise_floor, replace_files, min_silence_duration):
-    print(f"Processing file: {filename}")
+
+def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files, min_silence_duration):
+    filename = os.path.basename(filepath)
+    print(f"Processing file: {filepath}")
     
     # Load the mp3 file and its metadata
-    data, samplerate = sf.read(filename, always_2d=True)
-    original_audio = MP3(filename, ID3=EasyID3)
+    data, samplerate = sf.read(filepath, always_2d=True)
+    original_audio = MP3(filepath, ID3=EasyID3)
     
     # Find indices of samples above noise floor
     epsilon = 10 ** (noise_floor / 20)
@@ -39,31 +43,32 @@ def process(filename, trim_start, trim_end, padding, noise_floor, replace_files,
         
         if start_trimmed_duration >= min_silence_duration:
             trimmed_data = data[start_index:end_index]
-            print(f"Trimmed {start_trimmed_duration:.2f} seconds of silence at the start.")
+            print_friendly(filename, f"Trimmed {start_trimmed_duration:.2f} seconds of silence at the start.")
         else:
             trimmed_data = data
-            print(f"Start silence duration ({end_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds). File remains unchanged.")
+            print_friendly(filename, f"Start silence duration ({start_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds). File remains unchanged.")
         
-        if end_trimmed_duration < min_silence_duration:
-            print(f"End silence duration ({end_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds). File remains unchanged.")
-    else:
-        trimmed_data = data
-        print("No silence detected. File remains unchanged.")
+        if end_trimmed_duration >= min_silence_duration:
+            trimmed_data = data[start_index:end_index]
+            print_friendly(filename, f"Trimmed {end_trimmed_duration:.2f} seconds of silence at the end.")
+        else:
+            trimmed_data = data
+            print_friendly(filename, f"End silence duration ({end_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds). File remains unchanged.")
 
     
     # Determine the destination path for the trimmed file
     if replace_files:
-        trimmed_filename = filename
+        trimmed_filepath = filepath
     else:
-        trimmed_filename = os.path.join("trimmed", os.path.basename(filename))
+        trimmed_filepath = os.path.join("trimmed", os.path.basename(filepath))
         os.makedirs("trimmed", exist_ok=True)
     
     # Write the trimmed audio data to the destination file
-    sf.write(trimmed_filename, trimmed_data, samplerate)
-    print("Trimming completed.")
+    sf.write(trimmed_filepath, trimmed_data, samplerate)
+    print_friendly(filename, "Trimming completed.")
 
-    if filename.lower().endswith('.mp3'):
-        trimmed_audio = MP3(trimmed_filename, ID3=EasyID3)
+    if filepath.lower().endswith('.mp3'):
+        trimmed_audio = MP3(trimmed_filepath, ID3=EasyID3)
         trimmed_audio.update(original_audio)
         trimmed_audio.save()
 
