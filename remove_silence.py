@@ -13,6 +13,7 @@ import numpy as np
 import soundfile as sf
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
+import taglib  # Import pytaglib for WAV file metadata extraction
 
 # Mutagen audio file formats
 from mutagen.mp3 import MP3
@@ -33,6 +34,18 @@ AUDIO_FORMATS = {
 
 def print_friendly(prefix, message):
     print(f"({prefix}): " + message)
+
+
+def extract_wav_metadata(filepath):
+    metadata = {}
+    try:
+        tag = taglib.File(filepath)
+        for tag_key in tag.tags.keys():
+            metadata[tag_key.lower()] = tag.tags[tag_key][0]
+        print("Extracted metadata:", metadata)
+    except Exception as e:
+        print(f"Error extracting metadata from {filepath}: {str(e)}")
+    return metadata
 
 
 def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files, min_silence_duration, save_metadata):
@@ -97,17 +110,23 @@ def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files,
     if save_metadata:
         print_friendly(filename, "Copying metadata to trimmed file.")
         if file_extension == '.wav':
-            # Handle wave files separately, because they're broken with the above code for some reason?
-            import wave
-            with wave.open(filepath, 'rb') as original_wave:
-                with wave.open(trimmed_filepath, 'wb') as trimmed_wave:
-                    # Copy metadata
-                    for key in original_wave:
-                        trimmed_wave.set(key, original_wave.get(key))
+            # Handle wav files separately
+            wav_metadata = extract_wav_metadata(filepath)
+            try:
+                tag = taglib.File(trimmed_filepath)
+                tag.tags.update(wav_metadata)
+                tag.save()
+                print_friendly(filename, "Metadata saved successfully.")
+            except Exception as e:
+                print(f"Error: Failed to save metadata to {filepath}: {str(e)}")
         elif file_extension in AUDIO_FORMATS:
-            trimmed_audio = audio_class(trimmed_filepath)
-            trimmed_audio.update(original_audio)
-            trimmed_audio.save()
+            try:
+                trimmed_audio = audio_class(trimmed_filepath)
+                trimmed_audio.update(original_audio)
+                trimmed_audio.save()
+                print_friendly(filename, "Metadata saved successfully.")
+            except Exception as e:
+                print(f"Error: Failed to save metadata to {filepath}: {str(e)}")
         else:
             print_friendly(filename, "Unsupported audio format.")
 
