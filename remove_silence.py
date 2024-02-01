@@ -2,9 +2,15 @@
 
 # Bulk trim silence from mp3 audio files with many settings to customize
 """ TODO: 
-    support for more audio types
+    Save metadata for ogg, check metadata saving for other audio formats mutagen supports
     (?) choose new name of files [eg Rickroll_trimmed.mp3] and place in same/specific directory
     audio types to scan for
+"""
+
+"""
+    ! Known issues:
+    - On wave files, all metadata but track number is preserved.
+      Why? I have no god damn idea. My brain is fried.
 """
 
 
@@ -13,7 +19,7 @@ import numpy as np
 import soundfile as sf
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
-import taglib  # Import pytaglib for WAV file metadata extraction
+import taglib  # Import pytaglib for WAV file metadata extraction, because mutagen can't handle that for some reason unless I'm dumb?
 
 # Mutagen audio file formats
 from mutagen.mp3 import MP3
@@ -42,9 +48,8 @@ def extract_wav_metadata(filepath):
         tag = taglib.File(filepath)
         for tag_key in tag.tags.keys():
             metadata[tag_key.lower()] = tag.tags[tag_key][0]
-        print("Extracted metadata:", metadata)
     except Exception as e:
-        print(f"Error extracting metadata from {filepath}: {str(e)}")
+        print(f"Error: failed to extract metadata from {filepath}: {str(e)}")
     return metadata
 
 
