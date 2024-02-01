@@ -3,10 +3,8 @@
 # Bulk trim silence from mp3 audio files with many settings to customize
 """ TODO: 
     support for more audio types
-    choose specific folder to save trimmed versions to
     (?) choose new name of files [eg Rickroll_trimmed.mp3] and place in same/specific directory
     audio types to scan for
-    !! save other metadata such as lyrics and comments
 """
 
 
@@ -16,7 +14,6 @@ import soundfile as sf
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
 from mutagen.mp3 import MP3
-from mutagen.easyid3 import EasyID3
 
 def print_friendly(prefix, message):
     print(f"({prefix}): " + message)
@@ -28,7 +25,7 @@ def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files,
     
     # Load the mp3 file and its metadata
     data, samplerate = sf.read(filepath, always_2d=True)
-    original_audio = MP3(filepath, ID3=EasyID3)
+    original_audio = MP3(filepath)
     
     # Find indices of samples above noise floor
     epsilon = 10 ** (noise_floor / 20)
@@ -76,7 +73,7 @@ def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files,
     # Save metadata if requested
     if save_metadata and filepath.lower().endswith('.mp3'):
         print_friendly(filename, "Copying metadata to trimmed file.")
-        trimmed_audio = MP3(trimmed_filepath, ID3=EasyID3)
+        trimmed_audio = MP3(trimmed_filepath)
         trimmed_audio.update(original_audio)
         trimmed_audio.save()
 
