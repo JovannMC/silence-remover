@@ -1,9 +1,12 @@
 # Modified from https://sound.stackexchange.com/questions/52246/how-can-i-batch-remove-trailing-silence-from-audio-files
 
-# Bulk trim silence from all mp3 files with many settings to customize
+# Bulk trim silence from mp3 audio files with many settings to customize
 """ TODO: 
     support for more audio types
+    choose specific folder to save trimmed versions to
+    (?) choose new name of files [eg Rickroll_trimmed.mp3] and place in same/specific directory
     audio types to scan for
+    !! save other metadata such as lyrics and comments
 """
 
 
@@ -60,8 +63,11 @@ def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files,
     if replace_files:
         trimmed_filepath = filepath
     else:
-        trimmed_filepath = os.path.join("trimmed", os.path.basename(filepath))
-        os.makedirs("trimmed", exist_ok=True)
+        trimmed_filename = os.path.basename(filepath)
+        if destination_folder:
+            trimmed_filepath = os.path.join(destination_folder, trimmed_filename)
+        else:
+            trimmed_filepath = os.path.join("trimmed", trimmed_filename)
     
     # Write the trimmed audio data to the destination file
     sf.write(trimmed_filepath, trimmed_data, samplerate)
@@ -89,6 +95,15 @@ if __name__ == "__main__":
     scan_subdirectories = input("Scan subdirectories? (Y/n): ").lower() == 'y'
     save_metadata = input("Save audio metadata? (Y/n): ").lower() == 'y'
     replace_files = input("Replace original files with trimmed versions? (y/N): ").lower() == 'y'
+    if not replace_files:
+        default_destination = os.path.join(os.getcwd(), "trimmed")
+        destination_folder = input(f"Enter the directory to save trimmed files ({default_destination}): ") or default_destination
+        destination_folder = os.path.abspath(destination_folder)
+        os.makedirs(destination_folder, exist_ok=True)
+    else:
+        destination_folder = None
+
+
     trim_start = input("Trim silence from the start of the audio files? (Y/n): ").lower() == 'y'
     trim_end = input("Trim silence from the end of the audio files? (Y/n): ").lower() == 'y'
     minimum_duration = float(input("Enter the minimum duration of silence to be trimmed (1.0): ") or 1.0)
@@ -103,6 +118,7 @@ if __name__ == "__main__":
     trim_start = trim_start != 'n'
     trim_end = trim_end != 'n'
     scan_subdirectories = scan_subdirectories != 'n'
+    save_metadata = save_metadata != 'n'
 
     print("Scanning directory:", folder_to_scan)
 
