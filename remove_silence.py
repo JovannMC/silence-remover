@@ -13,7 +13,23 @@ import numpy as np
 import soundfile as sf
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
+
+# Mutagen audio file formats
 from mutagen.mp3 import MP3
+from mutagen.flac import FLAC
+from mutagen.oggvorbis import OggVorbis
+from mutagen.asf import ASF
+from mutagen.apev2 import APEv2
+from mutagen.wave import WAVE
+AUDIO_FORMATS = {
+    '.mp3': MP3,
+    '.flac': FLAC,
+    '.ogg': OggVorbis,
+    '.wma': ASF,
+    '.wav': WAVE,
+    '.aiff': APEv2,
+    '.ape': APEv2
+}
 
 def print_friendly(prefix, message):
     print(f"({prefix}): " + message)
@@ -23,9 +39,17 @@ def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files,
     filename = os.path.basename(filepath)
     print(f"Processing file: {filepath}")
     
-    # Load the mp3 file and its metadata
+    # Load the audio file and its metadata based on its format
+    file_extension = os.path.splitext(filepath.lower())[1]
+    if file_extension in AUDIO_FORMATS:
+        audio_class = AUDIO_FORMATS[file_extension]
+        original_audio = audio_class(filepath)
+    else:
+        print_friendly(filename, "Unsupported audio format.")
+        return
+    
+    # Load the audio data using soundfile
     data, samplerate = sf.read(filepath, always_2d=True)
-    original_audio = MP3(filepath)
     
     # Find indices of samples above noise floor
     epsilon = 10 ** (noise_floor / 20)
@@ -55,7 +79,6 @@ def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files,
             trimmed_data = data
             print_friendly(filename, f"End silence duration ({end_trimmed_duration:.2f} seconds) is less than the minimum threshold ({min_silence_duration} seconds).")
 
-    
     # Determine the destination path for the trimmed file
     if replace_files:
         trimmed_filepath = filepath
@@ -71,11 +94,22 @@ def process(filepath, trim_start, trim_end, padding, noise_floor, replace_files,
     print_friendly(filename, "Trimming completed.")
 
     # Save metadata if requested
-    if save_metadata and filepath.lower().endswith('.mp3'):
+    if save_metadata:
         print_friendly(filename, "Copying metadata to trimmed file.")
-        trimmed_audio = MP3(trimmed_filepath)
-        trimmed_audio.update(original_audio)
-        trimmed_audio.save()
+        if file_extension == '.wav':
+            # Handle wave files separately, because they're broken with the above code for some reason?
+            import wave
+            with wave.open(filepath, 'rb') as original_wave:
+                with wave.open(trimmed_filepath, 'wb') as trimmed_wave:
+                    # Copy metadata
+                    for key in original_wave:
+                        trimmed_wave.set(key, original_wave.get(key))
+        elif file_extension in AUDIO_FORMATS:
+            trimmed_audio = audio_class(trimmed_filepath)
+            trimmed_audio.update(original_audio)
+            trimmed_audio.save()
+        else:
+            print_friendly(filename, "Unsupported audio format.")
 
 
 if __name__ == "__main__":
@@ -119,22 +153,24 @@ if __name__ == "__main__":
 
     print("Scanning directory:", folder_to_scan)
 
-    # Find all mp3 files in the specified directory
-    mp3_files = []
+    # Find all supported audio files in the specified directory
+    audio_files = []
     if scan_subdirectories:
         for root, dirs, files in os.walk(folder_to_scan):
             for file in files:
-                if file.endswith('.mp3'):
-                    mp3_files.append(os.path.join(root, file))
+                file_extension = os.path.splitext(file.lower())[1]
+                if file_extension in AUDIO_FORMATS:
+                    audio_files.append(os.path.join(root, file))
     else:
         for file in os.listdir(folder_to_scan):
-            if file.endswith('.mp3'):
-                mp3_files.append(os.path.join(folder_to_scan, file))
+            file_extension = os.path.splitext(file.lower())[1]
+            if file_extension in AUDIO_FORMATS:
+                audio_files.append(os.path.join(folder_to_scan, file))
 
-    print("Found", len(mp3_files), "MP3 files in the directory.")
+    print("Found", len(audio_files), "supported audio files in the directory.")
 
     # Process files in parallel (if user chooses to multithread)
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        executor.map(process, mp3_files, [trim_start] * len(mp3_files), [trim_end] * len(mp3_files), [padding] * len(mp3_files), [noise_floor] * len(mp3_files), [replace_files] * len(mp3_files), [minimum_duration] * len(mp3_files), [save_metadata] * len(mp3_files))
+        executor.map(process, audio_files, [trim_start] * len(audio_files), [trim_end] * len(audio_files), [padding] * len(audio_files), [noise_floor] * len(audio_files), [replace_files] * len(audio_files), [minimum_duration] * len(audio_files), [save_metadata] * len(audio_files))
 
     print("Done processing! :3")
